@@ -67,7 +67,7 @@
 - [TypeScript 实现](./typescript) (✅ 已完成) —— [📖 查看 TS 版文档](./typescript/README.md)
 - [Python 实现](./python) (✅ 已完成) —— [📖 查看 Python 版文档](./python/README.md)
 - [Go 实现](./go) (✅ 已完成) —— [📖 查看 Go 版文档](./go/README.md)
-- *Rust 实现 (⏳ 计划中)*
+- [Rust 实现](./rust) (✅ 已完成) —— [📖 查看 Rust 版文档](./rust/README.md)
 
 ## 🚀 快速开始
 
@@ -141,22 +141,38 @@ go build -o mini-cc cmd/mini-cc/main.go
 ./mini-cc
 ```
 
-### 配置 API Key
+### Rust 版本
 
-初次运行 `mini-cc`，如果未检测到 API Key，程序会自动弹出交互式配置引导，帮助你一键设置并保存在全局目录 `~/.mini-cc/config.json` 中。
+#### 方法一：全局一键安装 (推荐)
 
-```text
-⚠️ 未检测到 OpenAI 兼容接口的 API Key。
-? 欢迎使用！请粘贴您的 OPENAI_API_KEY: **********
-? 请输入您想使用的模型名称 (默认: qwen3.6-plus): qwen3.6-plus
-? 如果您使用的是兼容接口，请输入 BASE_URL (可选): https://dashscope.aliyuncs.com/compatible-mode/v1
-✓ 配置已保存至全局目录 (~/.mini-cc/config.json)
+只要你的电脑上安装了 Rust 环境 (1.70+)，可以通过 Cargo 直接全局安装二进制：
+
+```bash
+cargo install --git https://github.com/you-want/mini-cc.git --bin minicc
+minicc
 ```
 
-你也可以通过命令行手动配置：
+#### 方法二：源码构建
+
 ```bash
-mini-cc config set OPENAI_API_KEY sk-xxxxx
-mini-cc config set MODEL_NAME qwen-max
+git clone https://github.com/you-want/mini-cc.git
+cd mini-cc/rust
+cargo build --release
+
+# 运行
+./target/release/minicc
+```
+
+### 配置 API Key
+
+初次运行 `mini-cc` (TS/Python/Go/Rust 任何一个版本)，如果未检测到 API Key，程序会自动弹出交互式配置引导，帮助你一键设置并保存在全局目录 `~/.mini-cc-env` 中。
+
+```text
+⚠️ 未检测到 API Key，进入初始化配置向导...
+? 请输入您的 OPENAI_API_KEY: **********
+? 请输入模型名称 (默认: qwen3.6-plus): qwen3.6-plus
+? 如果您使用的是兼容接口，请输入 BASE_URL (可选): https://dashscope.aliyuncs.com/compatible-mode/v1
+✓ 配置已成功保存至 ~/.mini-cc-env
 ```
 
 ## 💻 交互示例
