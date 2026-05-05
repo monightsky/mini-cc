@@ -13,47 +13,50 @@
 1. **强安全与零开销抽象**：避免了 `class` 以及繁重的面向对象系统，状态安全由生命周期与借用检查器严格保证。
 2. **多模型 SSE 流式输出**：通过 `eventsource-stream` 解析大模型的打字机流式响应，包括思维链。
 3. **Agent 核心闭环 (Tool Use)**：
-   - `BashTool`：利用 `std::process::Command` 高效并安全地执行外壳命令。
-   - `FileReadTool`：借用 `std::fs` 实现超大文件自动行数截断和读取。
-   - `FileWriteTool`：使用 `std::path::Path` 和 `create_dir_all` 安全地自动补全文件目录及内容覆盖。
-4. **完整多轮决策循环**：当模型判断需要继续收集信息时，循环不间断自动调用工具并返回执行结果给模型，直至任务圆满解决。
+   - `BashTool`：利用 `std::process::Command` 高效并安全地执行外壳命令。支持多层子 Shell 及包装命令拦截。
+   - `FileReadTool`：借用 `std::fs` 实现文件读取。
+   - `FileWriteTool`：严格的 `require_new` 机制，防止大模型意外覆盖核心旧代码。
+4. **终端交互与中文支持**：
+   - 引入 `rustyline` 支持上下键调出历史记录与命令回溯。
+   - 彻底修复终端下的 **全角中文标点防错位 Bug**（基于 `RUNEWIDTH_EASTASIAN=1`），保证删除光标精准。
+5. **交互式配置向导**：首次启动自动引导小白用户配置 API Key，告别报错与繁琐手动配表。
 
-## 🚀 使用步骤
+## 🚀 安装与使用
 
-### 1. 环境准备
+### 方法一：全局一键安装 (推荐)
 
-确保你的系统已安装 **Rust 1.70+**（推荐使用 `rustup` 进行安装及管理工具链）。
-
-### 2. 编译项目
-
-进入项目目录并使用 Cargo 构建依赖包：
+只要你的电脑上安装了 [Rust 环境](https://rustup.rs/) (1.70+)，你可以在终端中随时随地通过以下命令直接全局安装 `mini-cc`：
 
 ```bash
+cargo install --git https://github.com/you-want/mini-cc.git --bin minicc
+```
+
+安装完成后，你可以在任何目录下直接输入命令唤醒 AI 编程助手：
+
+```bash
+minicc
+```
+
+### 方法二：源码克隆与运行
+
+如果你希望阅读、学习甚至魔改它的源码：
+
+```bash
+# 1. 克隆代码
+git clone https://github.com/you-want/mini-cc.git
 cd mini-cc/rust
-cargo check
-```
 
-### 3. 配置环境变量
-
-在 `mini-cc/rust` 目录下创建一个 `.env` 文件，并填入以下内容：
-
-```env
-# 必填：你的大模型 API Key
-OPENAI_API_KEY="sk-xxxxxx"
-
-# 选填：大模型接口的 Base URL（如果不填，默认为 OpenAI 官方地址）
-OPENAI_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
-
-# 选填：你想使用的模型名称（默认为 qwen3.6-plus）
-MODEL_NAME="qwen-max"
-```
-
-### 4. 启动 Agent
-
-通过 Cargo 直接运行：
-
-```bash
+# 2. 本地运行体验
 cargo run
+
+# 3. 编译出最高性能的 release 版本
+cargo build --release
+# 执行编译出的二进制文件
+./target/release/minicc
 ```
 
-等待编译（首次编译可能需要下载 `tokio`、`reqwest` 等宏大依赖），启动后将显示 `mini-cc>`。现在，你可以尝试向它输入命令让它自动为你读写代码了！
+### 环境配置机制
+
+`mini-cc` 采用**双层回退加载机制**，极大地提升了作为全局工具使用的便捷性：
+1. **全局默认配置**：首次运行时如果没有检测到 API Key，会自动进入向导模式引导输入，并将配置保存在你电脑的主目录下 (`~/.mini-cc-env`)。
+2. **局部项目覆盖**：如果在你当前执行 `minicc` 命令的代码项目目录下存在 `.env` 文件，它将具有最高优先级，覆盖全局配置。

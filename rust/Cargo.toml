@@ -2,6 +2,14 @@
 name = "minicc"
 version = "1.0.0"
 edition = "2021"
+authors = ["Rain9"]
+description = "一个极简架构的轻量级 AI 编程智能体 (Rust Edition)，支持大模型工具调用与终端结对编程。"
+repository = "https://github.com/you-want/mini-cc"
+homepage = "https://mini-cc.raingpt.top/"
+license = "MIT"
+readme = "README.md"
+keywords = ["cli", "ai", "agent", "llm", "terminal", "mini-cc"]
+categories = ["command-line-utilities"]
 
 [dependencies]
 tokio = { version = "1.37.0", features = ["full"] }
@@ -14,3 +22,4 @@ futures-util = "0.3.30"
 eventsource-stream = "0.2.3"
 chrono = "0.4.44"
 regex = "1.12.3"
+rustyline = "18.0.0"

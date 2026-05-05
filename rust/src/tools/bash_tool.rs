@@ -3,26 +3,50 @@ use serde_json::{json, Value};
 use std::process::Command;
 use regex::Regex;
 
+/// 剥离外层包装命令（如 sudo、timeout、watch），提取核心命令用于安全检查
+fn strip_command_wrappers(cmd: &str) -> String {
+    let wrapper_regex = Regex::new(r"^(?:sudo\s+|timeout\s+(?:-[a-zA-Z]+\s+(?:\d+\s+)?)*\d+[smhd]?\s+|watch\s+(?:-[a-zA-Z]+\s+(?:\d+\s+)?)*\d*\.?\d*\s+)+").unwrap();
+    let watch_regex = Regex::new(r"^watch\s+").unwrap();
+
+    let mut current = cmd.trim().to_string();
+    loop {
+        let mut new_cmd = wrapper_regex.replace_all(&current, "").to_string();
+        new_cmd = watch_regex.replace_all(new_cmd.trim(), "").to_string();
+        new_cmd = new_cmd.trim().to_string();
+        
+        if new_cmd == current {
+            break;
+        }
+        current = new_cmd;
+    }
+    current
+}
+
 fn check_security(command: &str) -> Result<(), String> {
-    // 禁止执行 rm -rf / 及其变体，使用正则匹配各种形式的 rm 命令
-    let rm_pattern = Regex::new(r"rm\s+-[rR]?[fF]?[rR]?\s+/?\s*\*?").unwrap();
-    if rm_pattern.is_match(command) {
-        return Err("包含高危操作: 试图执行 rm -rf 相关命令，已被安全策略阻止。".to_string());
-    }
+    let destructive_patterns = [
+        r"rm\s+-rf\s+/\s*$",
+        r"rm\s+-rf\s+\*\s*$",
+        r"mkfs(?:\.[a-z0-9]+)?\s+/[a-zA-Z0-9/]+",
+        r"dd\s+if=/dev/(?:zero|urandom)\s+of=/[a-zA-Z0-9/]+",
+        r">\s*/dev/sda",
+        r":\(\)\{\s*:\|:&\s*\};:",
+        r">\s*/etc/[a-zA-Z0-9_.-]+",
+    ];
 
-    // 禁止在命令中使用 $(...) 或 `...` 形式的命令替换（防止嵌套执行恶意命令）
-    let cmd_sub_pattern = Regex::new(r"\$\(.*\)|\`.*\`").unwrap();
-    if cmd_sub_pattern.is_match(command) {
-        return Err("包含高危操作: 试图使用命令替换语法 $(...) 或 `...`，已被安全策略阻止。".to_string());
-    }
+    let base_cmd = strip_command_wrappers(command);
 
-    // 禁止其他常见的危险系统操作
-    let forbidden = ["mkfs", "dd if=", ":(){ :|:& };:", "wget ", "curl "];
-    for f in forbidden {
-        if command.contains(f) {
-            return Err(format!("包含高危操作: {}", f));
+    for pattern in &destructive_patterns {
+        let re = Regex::new(pattern).unwrap();
+        if re.is_match(&base_cmd) || re.is_match(command) {
+            return Err("【严重警告：您的命令被系统强行终止！】\n您尝试执行的命令包含高危操作。安全沙盒已拦截此操作。".to_string());
         }
     }
+
+    let cmd_sub_pattern = Regex::new(r"\$\(.*\)|\`.*\`").unwrap();
+    if cmd_sub_pattern.is_match(&base_cmd) || cmd_sub_pattern.is_match(command) {
+        return Err("【严重警告】命令替换语法被拦截。".to_string());
+    }
+
     Ok(())
 }
 
@@ -51,11 +75,16 @@ fn execute(args: Value) -> std::pin::Pin<Box<dyn std::future::Future<Output = Re
             None => return Err("执行命令时出错: command 不能为空".to_string()),
         };
 
+        // 动态获取当前的工作区绝对路径
+        let current_dir = std::env::current_dir().unwrap_or_default();
+        let workspace_dir = current_dir.parent().unwrap_or(&current_dir).join("test_file");
+
         if let Err(reason) = check_security(&cmd) {
-            return Ok(format!("命令执行被安全沙盒拒绝：{}", reason));
+            // 注意：安全拦截错误作为普通的文本输出返回给大模型，让它知道自己被拦截了
+            return Ok(format!("安全沙盒已拦截：{}", reason));
         }
 
-        let output = match Command::new("bash").arg("-c").arg(&cmd).output() {
+        let output = match Command::new("bash").arg("-c").arg(&cmd).current_dir(&workspace_dir).output() {
             Ok(o) => o,
             Err(e) => return Err(format!("执行命令失败: {}", e)),
         };

@@ -32,12 +32,17 @@ pub struct OpenAIProvider {
 
 impl OpenAIProvider {
     pub fn new(api_key: String, base_url: String, model: String) -> Self {
-        // 设置系统提示词，规范 Agent 的行为模式和默认输出目录
-        let system_prompt = "你是一个名为 mini-cc 的高级 AI 编程助手。你拥有读取文件、写入文件和执行终端命令的权限。你的目标是帮助用户解决复杂的软件工程问题。\n\n【默认输出目录】\n如果用户要求你创建、生成、输出代码或文件，但没有明确指明输出目录，请务必默认将这些内容输出到相对于当前工作目录的上一级目录下的 `test_file` 文件夹中（即 `../test_file` 目录下）。";
+        // 动态获取当前的工作区绝对路径
+        let current_dir = std::env::current_dir().unwrap_or_default();
+        let workspace_dir = current_dir.parent().unwrap_or(&current_dir).join("test_file");
+        let workspace_str = workspace_dir.to_string_lossy().to_string();
+
+        // 设置系统提示词，动态注入当前工作区绝对路径
+        let system_prompt = format!("You are mini-cc, an autonomous AI programming assistant.\nYou can execute bash commands, read and write files.\nImportant: When creating a NEW file, you MUST set require_new=true to prevent accidentally overwriting existing files.\nAlways explain your reasoning before making destructive changes.\nYou are currently working in the directory: {}\nAny relative paths should be resolved relative to this directory.", workspace_str);
 
         let messages = vec![Message {
             role: "system".to_string(),
-            content: system_prompt.to_string(),
+            content: system_prompt,
             tool_calls: None,
             tool_call_id: None,
         }];
