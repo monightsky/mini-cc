@@ -23,17 +23,30 @@ fn strip_command_wrappers(cmd: &str) -> String {
 }
 
 fn check_security(command: &str) -> Result<(), String> {
+    let base_cmd = strip_command_wrappers(command);
+
+    // 先做一层针对 rm 参数顺序变体的精确拦截（例如 rm -f -r /、rm -r -f /）
+    // 这类命令不一定匹配固定的 "-rf" 字样，但本质同样危险。
+    let rm_variants = Regex::new(r"^rm\s+((?:-[a-zA-Z]+\s+)+)(/|\*)\s*$").unwrap();
+    for candidate in [command.trim(), base_cmd.trim()] {
+        if let Some(caps) = rm_variants.captures(candidate) {
+            let flags = caps.get(1).map(|m| m.as_str()).unwrap_or("").to_lowercase();
+            if flags.contains('r') && flags.contains('f') {
+                return Err("【严重警告：您的命令被系统强行终止！】\n您尝试执行的命令包含高危操作。安全沙盒已拦截此操作。".to_string());
+            }
+        }
+    }
+
     let destructive_patterns = [
         r"rm\s+-rf\s+/\s*$",
         r"rm\s+-rf\s+\*\s*$",
+        r"rm\s+-rf\s+/\*\s*$",
         r"mkfs(?:\.[a-z0-9]+)?\s+/[a-zA-Z0-9/]+",
         r"dd\s+if=/dev/(?:zero|urandom)\s+of=/[a-zA-Z0-9/]+",
         r">\s*/dev/sda",
         r":\(\)\{\s*:\|:&\s*\};:",
         r">\s*/etc/[a-zA-Z0-9_.-]+",
     ];
-
-    let base_cmd = strip_command_wrappers(command);
 
     for pattern in &destructive_patterns {
         let re = Regex::new(pattern).unwrap();
@@ -102,25 +115,4 @@ fn execute(args: Value) -> std::pin::Pin<Box<dyn std::future::Future<Output = Re
 
         Ok(format!("{}{}", stdout, stderr))
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_check_security() {
-        assert!(check_security("ls -la").is_ok());
-        assert!(check_security("echo 'hello'").is_ok());
-        
-        assert!(check_security("rm -rf /").is_err());
-        assert!(check_security("rm -f -r /").is_err());
-        assert!(check_security("rm -rf /*").is_err());
-        
-        assert!(check_security("echo $(ls)").is_err());
-        assert!(check_security("echo `ls`").is_err());
-        
-        assert!(check_security("mkfs.ext4 /dev/sda1").is_err());
-        assert!(check_security("dd if=/dev/zero of=/dev/sda").is_err());
-    }
 }

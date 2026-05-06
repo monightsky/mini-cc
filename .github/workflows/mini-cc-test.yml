@@ -1,22 +1,14 @@
-name: mini-cc TypeScript Tests
+name: mini-cc Multi-Language CI
 
 on:
   push:
     branches: [ main, master ]
-    paths:
-      - 'mini-cc/typescript/**'
   pull_request:
     branches: [ main, master ]
-    paths:
-      - 'mini-cc/typescript/**'
 
 jobs:
-  test:
+  typescript:
     runs-on: ubuntu-latest
-    
-    defaults:
-      run:
-        working-directory: mini-cc/typescript
 
     strategy:
       matrix:
@@ -24,19 +16,81 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-        cache-dependency-path: mini-cc/typescript/package-lock.json # Or pnpm-lock.yaml / yarn.lock
-        
+        cache: 'pnpm'
+        cache-dependency-path: typescript/pnpm-lock.yaml
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 9
+
     - name: Install dependencies
-      run: npm install
-      
+      run: pnpm install --frozen-lockfile
+      working-directory: typescript
+
     - name: Run Build
-      run: npm run build
-      
+      run: pnpm run build
+      working-directory: typescript
+
     - name: Run Tests
-      run: npm test
+      run: pnpm test
+      working-directory: typescript
+
+  python:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install pytest pytest-asyncio
+      working-directory: python
+
+    - name: Run tests
+      run: pytest -q
+      working-directory: python
+
+  go:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: "1.22"
+
+    - name: Run tests
+      run: go test ./...
+      working-directory: go
+
+  rust:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Run tests
+      run: cargo test
+      working-directory: rust

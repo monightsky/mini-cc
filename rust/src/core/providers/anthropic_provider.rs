@@ -22,12 +22,20 @@ pub struct AnthropicProvider {
     client: Client,
     api_key: String,
     model: String,
+    base_url: String,
     messages: Vec<AnthropicMessage>,
     system_prompt: String,
 }
 
 impl AnthropicProvider {
     pub fn new(api_key: String, model: String) -> Self {
+        Self::new_with_base_url(api_key, model, "https://api.anthropic.com".to_string())
+    }
+
+    /// 可注入 base_url 的构造函数：
+    /// - 生产环境可继续使用官方地址
+    /// - 测试环境可指向本地 mock server，便于做 SSE 回归测试
+    pub fn new_with_base_url(api_key: String, model: String, base_url: String) -> Self {
         // Anthropic 的 System Prompt 不能混在 messages 数组里，而是要在请求时单独指定
         let system_prompt = "你是一个名为 mini-cc 的高级 AI 编程助手。你拥有读取文件、写入文件和执行终端命令的权限。你的目标是帮助用户解决复杂的软件工程问题。\n\n【默认输出目录】\n如果用户要求你创建、生成、输出代码或文件，但没有明确指明输出目录，请务必默认将这些内容输出到相对于当前工作目录的上一级目录下的 `test_file` 文件夹中（即 `../test_file` 目录下）。".to_string();
 
@@ -35,6 +43,7 @@ impl AnthropicProvider {
             client: Client::new(),
             api_key,
             model,
+            base_url: base_url.trim_end_matches('/').to_string(),
             messages: Vec::new(),
             system_prompt,
         }
@@ -71,7 +80,7 @@ impl AnthropicProvider {
 
         let res = self
             .client
-            .post("https://api.anthropic.com/v1/messages")
+            .post(format!("{}/v1/messages", self.base_url))
             .header("x-api-key", &self.api_key)
             .header("anthropic-version", "2023-06-01")
             .header("Content-Type", "application/json")
